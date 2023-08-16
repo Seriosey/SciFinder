@@ -7,6 +7,8 @@
 
 import sqlite3 as sl
 import pandas as pd
+import networkx as nx
+import matplotlib.pyplot as plt
 import io
 import csv
 
@@ -37,20 +39,22 @@ def str_to_list(str_tensor):
 
 pd_with_lists = str_to_list(df['keywords'])
 
-
-id_list = df['pubmed_id'].to_list()
-
-# id_id_weight_dict = dict.fromkeys(id_list)
-
-id_id_weight_list = []
+# построение полносвязного графа с весами рёбер
+G = nx.Graph()
 
 for first_id, first_keywords in zip(df['pubmed_id'], df['keywords']):
-    weight_counter = 0
+    weight = 0
     for second_id, second_keywords in zip(df['pubmed_id'], df['keywords']):
         for word in first_keywords:
             if word in second_keywords:
-                weight_counter += 1
-                new_row = [first_id, second_id, weight_counter]
-                id_id_weight_list.append(new_row)
-print(id_id_weight_list)
+                weight += 1
+        weight /= len(second_keywords) + len(first_keywords)
+        G.add_edge(first_id, second_id, weight=weight)
 
+pos = nx.spring_layout(G, seed=7)
+edge_labels = nx.get_edge_attributes(G, "weight")
+nx.draw_networkx_edge_labels(G, pos, edge_labels)
+
+nx.draw_spring(G, with_labels=True)
+
+plt.show()
