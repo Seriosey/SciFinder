@@ -1,4 +1,5 @@
 # добавить направления рёбер в зависимости от даты публикации
+# перевести абстракты, результаты и заключения в векторы и кластеризовать их в векторном пространстве
 
 import sqlite3 as sl
 import pandas as pd
@@ -12,7 +13,7 @@ def create_dataframe(data_base_file, kwords_to_list:bool):
     # if kwords_to_list == True, convert string of keywords to list
 
     db = sl.connect(data_base_file)
-    df = pd.read_sql_query("SELECT rowid, pubmed_id, keywords FROM SciFinder_data WHERE rowid < 100 AND keywords <> '[]'", db)
+    df = pd.read_sql_query("SELECT rowid, pubmed_id, keywords FROM SciFinder_data WHERE rowid < 50 AND keywords <> '[]'", db)
     db.close()
     df['keywords'] = df['keywords'].str.replace(', ', ',')
     df['keywords'] = df['keywords'].str.replace('"', '')
@@ -74,6 +75,7 @@ def get_shortest_way(G, A, B, drow:bool):
     # если узлы никак не связаны, возвращает "Статьи не связаны"
     # G : graph
     # A, B : str - article`s pubmed ids
+    # if keywords == True возвращает ключевые слова, по которым совпадают данные статьи
     result = nx.shortest_path(G, A, B)
     if result:
         print(f'Кратчайший путь от {A} к {B}: {result}')
@@ -85,7 +87,6 @@ def get_shortest_way(G, A, B, drow:bool):
         edge_labels = nx.get_edge_attributes(G, "weight")
         nx.draw_networkx_edge_labels(G, pos, edge_labels)
         node_color_list = []
-        edge_color_list = []
         for node in G:
             if node == A or node == B:
                 node_color_list.append('red')
@@ -102,5 +103,22 @@ def get_shortest_way(G, A, B, drow:bool):
             G[result[i]][result[i + 1]]['color'] = 'red'
         # Store in a list to use for drawing
         edge_color_list = [G[e[0]][e[1]]['color'] for e in G.edges()]
-        nx.draw(G, node_color=node_color_list, edge_color = edge_color_list, with_labels=True)
+        nx.draw(G, node_color=node_color_list, edge_color=edge_color_list, with_labels=True)
         plt.show()
+
+        print( G.edges[A, B]['weight'] )
+
+
+def get_keywords(first_id, second_id, df):
+    keywords_1 = df.loc[ df['pubmed_id'] == first_id, 'keywords' ].iloc[0]
+    keywords_2 = df.loc[ df['pubmed_id'] == second_id, 'keywords' ].iloc[0]
+    matching_words = []
+    for word in keywords_1:
+        if word in keywords_2:
+            matching_words.append(word)
+    if matching_words == []:
+        print('Совпадений по ключевым словам нет')
+    else:
+        print (f'Совпадающие ключевые слова: {matching_words}')
+    print(keywords_1, '\n', keywords_2)
+
