@@ -9,5 +9,3 @@ for id in ids:
     print(id[1:])
 
 db.close()
-
-# WHERE methods <> 'None'

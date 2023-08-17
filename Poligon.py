@@ -1,63 +1,15 @@
-# import sqlite3 as sl
-# db = sl.connect('my-test.db')
-#
-# c = db.cursor()
-#
-# # c.execute("""CREATE TABLE articles (
-# # title text,
-# # full_text text,
-# # views integer,
-# # author text
-# # )""")
-#
-#
-# # c.execute("INSERT INTO articles VALUES ('LabSON is cool', 'LabSON Jobs', 100, 'LabSONLabSON')")
-#
-# c.execute(
-# "SELECT rowid, * FROM articles WHERE --- ORDERED BY --- DESC"
-# )
-# print(c.fetchmany(2))
-#
-# c.execute("DELETE FROM articles WHERE ---")
-#
-# c.execute("UPDATE articles SET author = 'avtor', ---, --- WHERE ---")
-#
-# db.commit()
-#
-# db.close()
+from Graph import create_dataframe
+from Graph import build_graph
+from Graph import get_shortest_way
 
+data_base_file = 'SciFinder_data.db'
+df = create_dataframe(data_base_file, kwords_to_list=True)
 
-from Graph import df
+id_list = df['pubmed_id']
+keywords_list = df['keywords']
+Graph = build_graph(id_list, keywords_list, drow=False)
 
-ids_list = df['pubmed_id'].to_list()
-
-edge_list = []
-for id_1 in ids_list:
-    for id_2 in ids_list:
-        edge = (id_1, id_2)
-        edge_list.append(edge)
-
-import networkx as nx
-import matplotlib.pyplot as plt
-
-# G = nx.from_edgelist(edge_list)
-#
-# print(nx.adjacency_matrix(G))
-#
-# nx.draw_spring(G, with_labels=True)
-# plt.show()
-#
-# A = ids_list[0]
-# B = ids_list[10]
-# print(nx.shortest_path(G, A, B))
-
-G = nx.Graph()
-G.add_edge(1, 2, weight=0.6)
-
-pos = nx.spring_layout(G, seed=7)
-edge_labels = nx.get_edge_attributes(G, "weight")
-nx.draw_networkx_edge_labels(G, pos, edge_labels)
-
-nx.draw_spring(G, with_labels=True)
-
-plt.show()
+print(id_list)
+A = '37579923'
+B = '37565054'
+short_way = get_shortest_way(Graph, df, A, B)
