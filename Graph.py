@@ -74,7 +74,7 @@ def build_graph(id_list, keywords_list, drow:bool):
 
 
 # поиск кратчайшего пути между двумя узлами
-def get_shortest_way(G, df, A, B):
+def get_shortest_way(G, df, A, B, drow:bool):
     # находит кратчайший путь между двумя узлами графа
     # если узлы никак не связаны, возвращает "Статьи не связаны"
     # G : graph
@@ -86,3 +86,17 @@ def get_shortest_way(G, df, A, B):
     else:
         print( 'Статьи не связаны' )
 
+    if drow == True:
+        pos = nx.spring_layout(G, seed=7)
+        edge_labels = nx.get_edge_attributes(G, "weight")
+        nx.draw_networkx_edge_labels(G, pos, edge_labels)
+        color_map = []
+        for node in G:
+            if node == A or node == B:
+                color_map.append('red')
+            elif node in result[1:-1]:
+                color_map.append('orange')
+            else:
+                color_map.append('blue')
+        nx.draw(G, node_color=color_map, with_labels=True)
+        plt.show()
