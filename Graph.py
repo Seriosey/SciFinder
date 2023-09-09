@@ -5,6 +5,7 @@ import sqlite3 as sl
 import pandas as pd
 import networkx as nx
 import matplotlib.pyplot as plt
+from weighter import *
 import io
 import csv
 
@@ -34,6 +35,8 @@ def create_dataframe(data_base_file, kwords_to_list:bool):
                     df['keywords'][idx] = new_row
     return df
 
+print()
+
 # построение графа
 def build_graph(id_list, keywords_list, drow:bool):
     # id_list : list of pubmed_ids
@@ -45,10 +48,7 @@ def build_graph(id_list, keywords_list, drow:bool):
         for second_id, second_keywords in zip(id_list, keywords_list):
             if first_id == second_id:
                 break
-            for word in first_keywords:
-                if word in second_keywords:
-                    weight += 1
-            weight /= len(second_keywords) + len(first_keywords)
+            weight = weighter_k(first_keywords, second_keywords)
             G.add_edge(first_id, second_id, weight=weight)
 
     # удаление рёбер с нулевым весом
@@ -112,6 +112,7 @@ def get_shortest_way(G, A, B, drow:bool):
 def get_keywords(first_id, second_id, df):
     keywords_1 = df.loc[ df['pubmed_id'] == first_id, 'keywords' ].iloc[0]
     keywords_2 = df.loc[ df['pubmed_id'] == second_id, 'keywords' ].iloc[0]
+    print(keywords_1)
     matching_words = []
     for word in keywords_1:
         if word in keywords_2:
