@@ -33,9 +33,10 @@ def create_dataframe(data_base_file, kwords_to_list:bool):
                 for s in sp:
                     new_row.append(s)
                     df['keywords'][idx] = new_row
+                    #df.loc[idx, 'keywords'] = new_row
     return df
 
-print()
+#print()
 
 # построение графа
 def build_graph(id_list, keywords_list, drow:bool):
@@ -48,14 +49,22 @@ def build_graph(id_list, keywords_list, drow:bool):
         for second_id, second_keywords in zip(id_list, keywords_list):
             if first_id == second_id:
                 break
-            weight = weighter_k(first_keywords, second_keywords)
+            #print('keywords is smth like this: ', first_keywords, 'type: ')
+            weight = 1/sum(sum(weighter_k(first_keywords, second_keywords).numpy()))
+            #print(weight)
             G.add_edge(first_id, second_id, weight=weight)
 
     # удаление рёбер с нулевым весом
     remove = []
-    for edge in G.edges.data('weight'):
-        if edge[2] == 0:
+    # for edge in G.edges.data('weight'):
+    #     if edge[2] == 0:
+    #         remove.append(edge)
+    # G.remove_edges_from(remove)
+    
+    for edge in G.edges(data=True):
+        if edge[2]['weight'] > 5:
             remove.append(edge)
+
     G.remove_edges_from(remove)
 
     # построение графа
