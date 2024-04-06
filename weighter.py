@@ -6,15 +6,12 @@ from sentence_transformers import SentenceTransformer, util, models, losses
 from sklearn.model_selection import train_test_split
 
 
-model = SentenceTransformer('paraphrase-MiniLM-L12-v2')
-bert = models.Transformer('bert-base-uncased')
 
-pooler = models.Pooling(
-    bert.get_word_embedding_dimension(),
-    pooling_mode_mean_tokens=True
-)
+############################## At first, just using BioBert ######################################
 
-custom_model = SentenceTransformer(modules=[bert, pooler])
+# model = model.ckpt-1000000.data-00000-of-00001
+
+'dmis-lab/biobert-base-cased-v1.1'
 
 # Two lists of sentences
 sentences1 = ['The cat sits outside',
@@ -52,10 +49,10 @@ def weighter_k(first_keywords, second_keywords):
 
 
 
-print(weighter_k(abstractlike1, absract1))
-print(weighter_k(abstractnotlike1, absract1))
-print(weighter_k(abstractlike1, abstractnotlike1))
-print(weighter_k(abstractlike1, abstractnotatalllike1))
+# print(weighter_k(abstractlike1, absract1))
+# print(weighter_k(abstractnotlike1, absract1))
+# print(weighter_k(abstractlike1, abstractnotlike1))
+# print(weighter_k(abstractlike1, abstractnotatalllike1))
 
     #Output the pairs with their score
     # for i in range(len(sentences1)):
@@ -64,58 +61,11 @@ print(weighter_k(abstractlike1, abstractnotatalllike1))
 
 
 
-'''
-import datasets
 
-snli = datasets.load_dataset('snli', split='train')
-m_nli = datasets.load_dataset('glue', 'mnli', split='train')
-
-m_nli = m_nli.remove_columns(['idx'])
-snli = snli.cast(m_nli.features)
-
-nli = datasets.concatenate_datasets([snli, m_nli])
-del snli, m_nli
-# and remove bad rows
-nli = nli.filter(
-    lambda x: False if x['label'] == -1 else True
-)
-
-from sentence_transformers import InputExample
-from tqdm.auto import tqdm  # so we see progress bar
-
-train_samples = []
-for row in tqdm(nli):
-    train_samples.append(InputExample(
-        texts=[row['premise'], row['hypothesis']],
-        label=row['label']
-    ))
-
-from torch.utils.data import DataLoader
-
-batch_size = 16
-
-loader = DataLoader(
-    train_samples, shuffle=True, batch_size=batch_size)
+############################## bert training ###################################
 
 
-epochs = 1
-warmup_steps = int(len(loader) * epochs * 0.1)
-
-loss = losses.TripletLoss(model=custom_model) #SoftmaxLoss
-
-custom_model.fit(
-    train_objectives=[(loader, loss)],
-    epochs=epochs,
-    warmup_steps=warmup_steps,
-    output_path='./sbert_test_b',
-    show_progress_bar=False,
-)'''
-
-# from datasets import load_dataset
-
-# dataset = load_dataset("owaiskha9654/PubMed_MultiLabel_Text_Classification_Dataset_MeSH")
-
-dataset_Name='/PubMed Multi Label Text Classification Dataset Processed.csv'
+dataset_Name='PubMed Multi Label Text Classification Dataset Processed.csv'
 
 df= pd.read_csv(dataset_Name)
 
@@ -129,57 +79,118 @@ num_labels = len(mesh_Heading_categories)
 
 df_train['one_hot_labels'] = list(df_train[mesh_Heading_categories].values)
 
+#print(df_train[:5], '\n'*2)
+
+positive_pairs = []
+
+
+# Choosing pairs of articles with matching MESH-Labels and adding them into training dataset
+for idx1,row1 in df_train[:30].iterrows():
+    for idx2,row2 in df_train[:30].iterrows():
+        #print(row1, row2)
+        labels1 = int(''.join (map(str, row1['one_hot_labels'])), 2)
+        labels2 = int(''.join (map(str, row2['one_hot_labels'])), 2)
+        print('labels: ', bin(labels1), bin(labels2))
+        overlay = bin(labels1 & labels2)
+        similarity = sum([int(e) for e in str(overlay)[2:]])
+        #print('abstract: ', row1['abstractText'])
+        if similarity >=6 : positive_pairs.append([row1['abstractText'], row2['abstractText']])
+        #print('len of labels: ', len(str(bin(labels2))))
+        print('similarity: ', similarity, '\n')
+
 labels = list(df_train.one_hot_labels.values)
 Article_train = list(df_train.abstractText.values)
 
 
+model = SentenceTransformer('paraphrase-MiniLM-L12-v2')
+bert = models.Transformer('bert-base-uncased')
 
-
-
-
-
-
-
-
-
-######################################################################################
-'''
-tokenizer = BertTokenizer.from_pretrained('bert-base-uncased')
-
-all_cols = ['label']
-
-for part in ['premise', 'hypothesis']:
-    dataset = dataset.map(
-        lambda x: tokenizer(
-            x[part], max_length=128, padding='max_length',
-            truncation=True
-        ),
-          batched=True
-    )
-    for col in ['input_ids', 'attention_mask']:
-        dataset = dataset.rename_column(
-            col, part+'_'+col
-        )
-        all_cols.append(part+'_'+col)
-print(all_cols)
-
-
-dataset.set_format(type='torch', columns=all_cols)
-
-# initialize the dataloader
-batch_size = 16
-loader = torch.utils.data.DataLoader(
-    dataset, batch_size=batch_size, shuffle=True
+pooler = models.Pooling(
+    bert.get_word_embedding_dimension(),
+    pooling_mode_mean_tokens=True
 )
 
+custom_model = SentenceTransformer(modules=[bert, pooler])
 
-def mean_pool(token_embeds, attention_mask):
-    # reshape attention_mask to cover 768-dimension embeddings
-    in_mask = attention_mask.unsqueeze(-1).expand(
-        token_embeds.size()
-    ).float()
-    # perform mean-pooling but exclude padding tokens (specified by in_mask)
-    pool = torch.sum(token_embeds * in_mask, 1) / torch.clamp(
-        in_mask.sum(1), min=1e-9
-    )
-    return pool'''
+dataset = df
+
+from sentence_transformers import InputExample
+
+# Formatting our dataset of pairs for DataLoader via InputExample
+train_examples = []
+
+n_examples = len(positive_pairs)
+
+for i in range(n_examples):
+  example = positive_pairs[i]
+  train_examples.append(InputExample(texts = example, label = 1))
+
+from torch.utils.data import DataLoader
+
+train_dataloader = DataLoader(train_examples, shuffle=True, batch_size=16)
+
+
+from sentence_transformers import losses
+
+train_loss = losses.MultipleNegativesRankingLoss(model=model)
+
+model.fit(train_objectives=[(train_dataloader, train_loss)], epochs=2)
+
+
+###############################   WordToVec    #######################################
+
+
+'''
+dataset_Name='PubMed Multi Label Text Classification Dataset Processed.csv'
+
+df= pd.read_csv(dataset_Name)
+
+df_train, df_test = train_test_split(df, random_state=32, test_size=0.20, shuffle=True)
+
+cols = df.columns
+cols = list(df.columns)
+mesh_Heading_categories = cols[6:]
+num_labels = len(mesh_Heading_categories)
+
+df_train['one_hot_labels'] = list(df_train[mesh_Heading_categories].values)
+
+#Labels = list(df_train.one_hot_labels.values)
+Article_train = list(df_train.abstractText.values)
+
+import pickle
+import nltk
+from nltk.tokenize import word_tokenize
+from gensim.models.doc2vec import Doc2Vec, TaggedDocument
+
+# import ssl
+# try:
+#     _create_unverified_https_context = ssl._create_unverified_context
+# except AttributeError:
+#     pass
+# else:
+#     ssl._create_default_https_context = _create_unverified_https_context
+#nltk.download()
+
+#nltk.download('punkt')
+
+
+#Use Doc2Vec to vectorise the contents of abstractText
+# Tokenize the documents
+tokenized_documents = [word_tokenize(document.lower()) for document in Article_train]
+
+#Create TaggedDocument objects
+# tagged_data = [TaggedDocument(words=doc, tags=[str(i)]) for i, doc in enumerate(tokenized_documents)]
+
+# #Train Doc2Vec model
+# model = Doc2Vec(vector_size=100, window=5, min_count=1, workers=8, epochs=50)
+# model.build_vocab(tagged_data)
+
+# print('Training started')
+# model.train(tagged_data, total_examples=model.corpus_count, epochs=model.epochs)
+# model.save("doc2vec_model")
+
+model = Doc2Vec.load("doc2vec_model")
+
+vector_representation = model.infer_vector(tokenized_documents[0])
+print(vector_representation)
+'''
