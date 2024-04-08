@@ -1,7 +1,7 @@
 from Graph import create_dataframe
 from Graph import build_graph
 from Graph import get_shortest_way
-from weighter import model
+from weighter import base_model, dmis_biobert, doc2vec_model, gsarti_biobert, check_embeddings
 from sklearn.cluster import kmeans_plusplus
 import numpy as np
 import warnings
@@ -16,16 +16,19 @@ keywords_list = df['keywords'].to_list()
 def id_to_embeddings(id):
     keywords = df.loc[df['pubmed_id'] == id, 'keywords'].values[0]
     #print(keywords)
-    embedding = model.encode(keywords, convert_to_numpy=True, normalize_embeddings = True)
+    embedding = base_model.encode(keywords, convert_to_numpy=True, normalize_embeddings = True) 
     return embedding
         
 print(id_to_embeddings('37584417'))
 
 embeddings = [id_to_embeddings(id) for id in id_list]
 
-X = np.array(embeddings, dtype=object)
-centers, indices = kmeans_plusplus(X, n_clusters=6, random_state=0)
-print('centers: ', centers)
+
+check_embeddings(keywords_list, model = base_model)
+
+# X = np.array(embeddings, dtype=object)
+# centers, indices = kmeans_plusplus(X, n_clusters=6, random_state=0)
+# print('centers: ', centers)
 
 # print(id_list)
 # Graph = build_graph(id_list, keywords_list, drow=False)

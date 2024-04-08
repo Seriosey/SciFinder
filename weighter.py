@@ -1,15 +1,37 @@
 import torch
 import pandas as pd
+import numpy as np
 from transformers import BertTokenizer, BertModel
 import matplotlib.pyplot as plt
 from sentence_transformers import SentenceTransformer, util, models, losses
 from sklearn.model_selection import train_test_split
+from gensim.models.doc2vec import Doc2Vec, TaggedDocument
+from nltk.tokenize import word_tokenize
+from transformers import AutoTokenizer, AutoModel
+
+
+dmis_biobert = SentenceTransformer('dmis-lab/biobert-base-cased-v1.1')
+
+# tokenizer = AutoTokenizer.from_pretrained("gsarti/biobert-nli")
+gsarti_biobert = SentenceTransformer("gsarti/biobert-nli")
+
 
 
 
 ############################## At first, just using BioBert ######################################
 
-# model = model.ckpt-1000000.data-00000-of-00001
+base_model = SentenceTransformer('paraphrase-MiniLM-L12-v2')
+bert = models.Transformer('bert-base-uncased')
+
+pooler = models.Pooling(
+    bert.get_word_embedding_dimension(),
+    pooling_mode_mean_tokens=True
+)
+
+custom_model = SentenceTransformer(modules=[bert, pooler])
+
+doc2vec_model = Doc2Vec.load("doc2vec_model")
+
 
 'dmis-lab/biobert-base-cased-v1.1'
 
@@ -35,24 +57,91 @@ def weighter_k(first_keywords, second_keywords):
     # keywords_1 = df.loc[ df['pubmed_id'] == first_id, 'keywords' ].iloc[0]
     # keywords_2 = df.loc[ df['pubmed_id'] == second_id, 'keywords' ].iloc[0]
 
-    embeddings1 = model.encode(first_keywords, convert_to_numpy=True, normalize_embeddings = True)
-    embeddings2 = model.encode(second_keywords, convert_to_numpy=True, normalize_embeddings = True)
-    #print(embeddings1, embeddings1.shape)
-    #print(embeddings2, embeddings2.shape)
+    embeddings1 = base_model.encode(first_keywords, convert_to_numpy=True, normalize_embeddings = True)
+    embeddings2 = base_model.encode(second_keywords, convert_to_numpy=True, normalize_embeddings = True)
+
+    # tokenized_doc1 = word_tokenize(first_keywords.lower())
+    # tokenized_doc2 = word_tokenize(second_keywords.lower())
+    # print('tokenized_doc1: ', tokenized_doc1)
+ 
+    # doc2vec_embedding1 = doc2vec_model.infer_vector(tokenized_doc1)
+    # doc2vec_embedding2 = doc2vec_model.infer_vector(tokenized_doc2)
+    # print('base embedding: ', embeddings1, embeddings1.shape)
+    # print('doc2vec embedding: ',doc2vec_embedding1, embeddings2.shape)
 
     #Compute cosine-similarits
-    cosine_scores = util.pytorch_cos_sim(embeddings1, embeddings2)
-    return cosine_scores #1/(cosine_scores + 1)
+    base_cosine_scores = util.pytorch_cos_sim(embeddings1, embeddings2)
+
+    #doc2vec_cosine_scores = util.pytorch_cos_sim([doc2vec_embedding1], [doc2vec_embedding2])
+    #print('cosine_score: ', base_cosine_scores)
+
+    weight = 1/((sum(sum(base_cosine_scores.numpy()))+1))
+    #print('weight: ', weight) # +1 for 0 to 2 score, and more similar articles - less weight between them
+    return weight  
 
     # dot_scores = util.dot_score(embeddings1, embeddings2)
     # return (dot_scores)
 
 
 
-# print(weighter_k(abstractlike1, absract1))
-# print(weighter_k(abstractnotlike1, absract1))
-# print(weighter_k(abstractlike1, abstractnotlike1))
-# print(weighter_k(abstractlike1, abstractnotatalllike1))
+print(weighter_k(abstractlike1, absract1))
+print(weighter_k(abstractnotlike1, absract1))
+print(weighter_k(abstractlike1, abstractnotlike1))
+print(weighter_k(abstractlike1, abstractnotatalllike1))
+
+
+
+def check_embeddings(words, model = base_model):
+   
+    if model == doc2vec_model: embeddings = model.infer_vector(words)
+    embeddings = model.encode(words, convert_to_tensor=True)
+    X = embeddings.cpu()
+
+    from sklearn.decomposition import PCA
+    reducer = PCA(n_components=2)
+    r = reducer.fit_transform(embeddings.cpu())
+    
+    import time
+    t0 = time.time()
+
+    import matplotlib.pyplot as plt
+    import seaborn as sns
+
+    fig = plt.figure(figsize = (25,10));  c = 0
+    n_x_subplots = 2
+    #plt.suptitle(str_data_inf, fontsize = 20)       
+
+    c+=1; fig.add_subplot(1,n_x_subplots,c)
+
+    from sklearn.decomposition import PCA
+    reducer = PCA(n_components=2)
+    r = reducer.fit_transform(X)
+
+    sns.scatterplot(x=r[:,0],y=r[:,1])
+    plt.title(str(reducer))
+
+    mask = r[:,1] > 2
+    #print( np.array(words)[mask] )
+
+    mask = r[:,1] > 2
+    #print( np.array(words)[mask] )
+
+    # c+=1; fig.add_subplot(1,n_x_subplots,c);
+
+    # import umap.umap_ as umap
+    # reducer = umap.UMAP()# 
+    # r = reducer.fit_transform(X )
+
+    # sns.scatterplot(x=r[:,0],y=r[:,1])
+    # plt.title(str(reducer))
+
+
+    plt.show()
+
+    print('%.1f seconds passed'%(-t0 + time.time() ) )
+
+#print(weighter_k(sentences1[0], sentences2[0]))
+
 
     #Output the pairs with their score
     # for i in range(len(sentences1)):
@@ -64,7 +153,7 @@ def weighter_k(first_keywords, second_keywords):
 
 ############################## bert training ###################################
 
-
+print('\nSOMEHOW weighter is running!\n')
 dataset_Name='PubMed Multi Label Text Classification Dataset Processed.csv'
 
 df= pd.read_csv(dataset_Name)
@@ -90,27 +179,18 @@ for idx1,row1 in df_train[:30].iterrows():
         #print(row1, row2)
         labels1 = int(''.join (map(str, row1['one_hot_labels'])), 2)
         labels2 = int(''.join (map(str, row2['one_hot_labels'])), 2)
-        print('labels: ', bin(labels1), bin(labels2))
+        # print('labels: ', bin(labels1), bin(labels2))
         overlay = bin(labels1 & labels2)
         similarity = sum([int(e) for e in str(overlay)[2:]])
         #print('abstract: ', row1['abstractText'])
         if similarity >=6 : positive_pairs.append([row1['abstractText'], row2['abstractText']])
         #print('len of labels: ', len(str(bin(labels2))))
-        print('similarity: ', similarity, '\n')
+        # print('similarity: ', similarity, '\n')
 
 labels = list(df_train.one_hot_labels.values)
 Article_train = list(df_train.abstractText.values)
 
 
-model = SentenceTransformer('paraphrase-MiniLM-L12-v2')
-bert = models.Transformer('bert-base-uncased')
-
-pooler = models.Pooling(
-    bert.get_word_embedding_dimension(),
-    pooling_mode_mean_tokens=True
-)
-
-custom_model = SentenceTransformer(modules=[bert, pooler])
 
 dataset = df
 
@@ -132,9 +212,9 @@ train_dataloader = DataLoader(train_examples, shuffle=True, batch_size=16)
 
 from sentence_transformers import losses
 
-train_loss = losses.MultipleNegativesRankingLoss(model=model)
+#train_loss = losses.MultipleNegativesRankingLoss(model=model)
 
-model.fit(train_objectives=[(train_dataloader, train_loss)], epochs=2)
+# model.fit(train_objectives=[(train_dataloader, train_loss)], epochs=2)
 
 
 ###############################   WordToVec    #######################################
